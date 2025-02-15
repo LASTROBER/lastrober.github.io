@@ -7,7 +7,95 @@
         <generator>Hugo -- gohugo.io</generator>
         <language>zh-cn</language>
         <copyright>LASTROBER</copyright>
-        <lastBuildDate>Mon, 11 Mar 2019 00:00:00 +0000</lastBuildDate><atom:link href="https://lastrober.github.io/tags/index.xml" rel="self" type="application/rss+xml" /><item>
+        <lastBuildDate>Thu, 13 Feb 2025 16:27:27 +0800</lastBuildDate><atom:link href="https://lastrober.github.io/tags/index.xml" rel="self" type="application/rss+xml" /><item>
+        <title>AI</title>
+        <link>https://lastrober.github.io/tags/ai/</link>
+        <pubDate>Thu, 13 Feb 2025 16:27:27 +0800</pubDate>
+        
+        <guid>https://lastrober.github.io/tags/ai/</guid>
+        <description></description>
+        </item>
+        <item>
+        <title>Deepseek</title>
+        <link>https://lastrober.github.io/tags/deepseek/</link>
+        <pubDate>Thu, 13 Feb 2025 16:27:27 +0800</pubDate>
+        
+        <guid>https://lastrober.github.io/tags/deepseek/</guid>
+        <description></description>
+        </item>
+        <item>
+        <title>弹幕分析</title>
+        <link>https://lastrober.github.io/tags/%E5%BC%B9%E5%B9%95%E5%88%86%E6%9E%90/</link>
+        <pubDate>Thu, 13 Feb 2025 16:27:27 +0800</pubDate>
+        
+        <guid>https://lastrober.github.io/tags/%E5%BC%B9%E5%B9%95%E5%88%86%E6%9E%90/</guid>
+        <description></description>
+        </item>
+        <item>
+        <title>写作</title>
+        <link>https://lastrober.github.io/tags/%E5%86%99%E4%BD%9C/</link>
+        <pubDate>Wed, 12 Feb 2025 00:02:49 +0800</pubDate>
+        
+        <guid>https://lastrober.github.io/tags/%E5%86%99%E4%BD%9C/</guid>
+        <description></description>
+        </item>
+        <item>
+        <title>自动化</title>
+        <link>https://lastrober.github.io/tags/%E8%87%AA%E5%8A%A8%E5%8C%96/</link>
+        <pubDate>Wed, 12 Feb 2025 00:02:49 +0800</pubDate>
+        
+        <guid>https://lastrober.github.io/tags/%E8%87%AA%E5%8A%A8%E5%8C%96/</guid>
+        <description></description>
+        </item>
+        <item>
+        <title>Markdown</title>
+        <link>https://lastrober.github.io/tags/markdown/</link>
+        <pubDate>Tue, 11 Feb 2025 22:58:22 +0800</pubDate>
+        
+        <guid>https://lastrober.github.io/tags/markdown/</guid>
+        <description></description>
+        </item>
+        <item>
+        <title>Poem</title>
+        <link>https://lastrober.github.io/tags/poem/</link>
+        <pubDate>Tue, 11 Feb 2025 22:58:22 +0800</pubDate>
+        
+        <guid>https://lastrober.github.io/tags/poem/</guid>
+        <description></description>
+        </item>
+        <item>
+        <title>Wirted in 2024</title>
+        <link>https://lastrober.github.io/tags/wirted-in-2024/</link>
+        <pubDate>Tue, 11 Feb 2025 22:58:22 +0800</pubDate>
+        
+        <guid>https://lastrober.github.io/tags/wirted-in-2024/</guid>
+        <description></description>
+        </item>
+        <item>
+        <title>Code</title>
+        <link>https://lastrober.github.io/tags/code/</link>
+        <pubDate>Tue, 11 Feb 2025 21:51:53 +0800</pubDate>
+        
+        <guid>https://lastrober.github.io/tags/code/</guid>
+        <description></description>
+        </item>
+        <item>
+        <title>Github</title>
+        <link>https://lastrober.github.io/tags/github/</link>
+        <pubDate>Tue, 11 Feb 2025 21:51:53 +0800</pubDate>
+        
+        <guid>https://lastrober.github.io/tags/github/</guid>
+        <description></description>
+        </item>
+        <item>
+        <title>解决问题</title>
+        <link>https://lastrober.github.io/tags/%E8%A7%A3%E5%86%B3%E9%97%AE%E9%A2%98/</link>
+        <pubDate>Tue, 11 Feb 2025 21:51:53 +0800</pubDate>
+        
+        <guid>https://lastrober.github.io/tags/%E8%A7%A3%E5%86%B3%E9%97%AE%E9%A2%98/</guid>
+        <description></description>
+        </item>
+        <item>
         <title>Css</title>
         <link>https://lastrober.github.io/tags/css/</link>
         <pubDate>Mon, 11 Mar 2019 00:00:00 +0000</pubDate>
@@ -21,14 +109,6 @@
         <pubDate>Mon, 11 Mar 2019 00:00:00 +0000</pubDate>
         
         <guid>https://lastrober.github.io/tags/html/</guid>
-        <description></description>
-        </item>
-        <item>
-        <title>Markdown</title>
-        <link>https://lastrober.github.io/tags/markdown/</link>
-        <pubDate>Mon, 11 Mar 2019 00:00:00 +0000</pubDate>
-        
-        <guid>https://lastrober.github.io/tags/markdown/</guid>
         <description></description>
         </item>
         <item>

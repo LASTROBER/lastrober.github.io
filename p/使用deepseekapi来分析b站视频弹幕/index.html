@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="zh-cn" dir="ltr">
+    <head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content="Bilibili 视频数据分析工具 内容： 这是一个用于分析Bilibili视频数据的Python工具。\n可以根据指定的视频CID获取视频信息、用户统计、视频标签、弹幕数据 将数据源传递给deepseek并分析弹幕内容与可视化处理。 功能 获取视频基本信息(标题、时长、作者等) 获取视频作者的粉丝数和关注数 获取视频标签 获取视频弹幕数据 分析弹幕内容和发送时间 生成弹幕时间分布图表 通过Web界面展示分析结果 依赖 Python 3.x requests matplotlib numpy Flask openai (可选,用于AI分析) markdown2 引入头文件 1 2 3 4 5 6 7 8 9 10 11 12 import requests import json import xml.etree.ElementTree as ET from datetime import datetime import matplotlib.pyplot as plt import numpy as np import time from openai import OpenAI from flask import Flask, jsonify, render_template from markdown2 import Markdown from datetime import datetime import urllib3 项目函数构成 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 def get_video_info(video_id): def get_user_stats(mid): def get_video_tags(video_id): def get_danmaku(video_id, max_count=50): def analyze_danmaku(danmaku_list, title, tags, view, danmaku, reply, favorite, coin, share, like): def prepare_chart_data(danmaku_times, duration): def prepare_real_time_data(danmaku_real_times): @app.route(&#39;/&#39;) def get_data(): @app.route(&#39;/get_data&#39;, methods=[&#39;POST&#39;]) def get_bilibili_data(): if __name__ == &#39;__main__&#39;: app.run(debug=True) ver1.0.0 获取视频标题函数 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 def get_video_title(video_id): # 获取视频的标题 url = f&#34;https://api.bilibili.com/x/web-interface/view?bvid={video_id}&#34; headers = { &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39; } response = requests.get(url, headers=headers) if response.status_code != 200: print(f&#34;Failed to get video title, status code: {response.status_code}&#34;) return None try: data = response.json() except json.JSONDecodeError: print(&#34;Failed to decode JSON response&#34;) return None title = data[&#39;data&#39;][&#39;title&#39;] return title 获取视频标签函数 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 def get_video_tags(video_id): # 获取视频的标签 url = f&#34;https://api.bilibili.com/x/tag/archive/tags?bvid={video_id}&#34; headers = { &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39; } response = requests.get(url, headers=headers) if response.status_code != 200: print(f&#34;Failed to get video tags, status code: {response.status_code}&#34;) return None try: data = response.json() except json.JSONDecodeError: print(&#34;Failed to decode JSON response&#34;) return None tags = [tag[&#39;tag_name&#39;] for tag in data[&#39;data&#39;]] return tags 根据视频的CID解析弹幕 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 def get_danmaku(video_id): # 获取视频的cid url = f&#34;https://api.bilibili.com/x/player/pagelist?bvid={video_id}&amp;jsonp=jsonp&#34; headers = { &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39; } response = requests.get(url, headers=headers) if response.status_code != 200: print(f&#34;Failed to get cid, status code: {response.status_code}&#34;) return None try: data = response.json() except json.JSONDecodeError: print(&#34;Failed to decode JSON response&#34;) return None cid = data[&#39;data&#39;][0][&#39;cid&#39;] # 获取弹幕信息 danmaku_url = f&#34;https://api.bilibili.com/x/v1/dm/list.so?oid={cid}&#34; danmaku_response = requests.get(danmaku_url, headers=headers) if danmaku_response.status_code != 200: print(f&#34;Failed to get danmaku, status code: {danmaku_response.status_code}&#34;) return None danmaku_response.encoding = &#39;utf-8&#39; danmaku_data = danmaku_response.text # 解析弹幕XML root = ET.fromstring(danmaku_data) danmaku_list = [d.text for d in root.findall(&#39;.//d&#39;)] danmaku_count = len(danmaku_list) return danmaku_list, danmaku_count 将视频的弹幕转为字符串，并调用deepseekAPI来分析内容 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 def analyze_danmaku(danmaku_list): # 将弹幕列表转换为字符串 danmaku_text = &#34;\\n&#34;.join(danmaku_list) client = OpenAI(api_key=&#34;sk-159747718eeb4e73ba4f002640d7a10a&#34;, base_url=&#34;https://api.deepseek.com&#34;) response = client.chat.completions.create( model=&#34;deepseek-chat&#34;, messages=[ {&#34;role&#34;: &#34;system&#34;, &#34;content&#34;: &#34;下列是一串b站视频弹幕，标题为：&#34;+title+&#34;，tag为：&#34;+tags+&#34;请根据这些内容分析并总结&#34;}, {&#34;role&#34;: &#34;user&#34;, &#34;content&#34;: danmaku_text}, ], stream=False ) resault =response.choices[0].message.content return resault 主函数 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 if __name__ == &#34;__main__&#34;: video_id = &#34;&lt;&lt;视频ID&gt;&gt;&#34; # 替换为你要查询的视频ID title = get_video_title(video_id) if title: print(f&#34;Video Title: {title}&#34;) tags = get_video_tags(video_id) if tags: print(f&#34;Video Tags: {&#39;, &#39;.join(tags)}&#34;) danmaku_list, danmaku_count = get_danmaku(video_id) if danmaku_list: for danmaku in danmaku_list: print(danmaku) print(f&#34;Total danmaku count: {danmaku_count}&#34;) # 调用DeepSeek API分析弹幕内容 analysis_result = analyze_danmaku(danmaku_list) if analysis_result: print(&#34;DeepSeek Analysis Result:&#34;) print(analysis_result) else: print(&#34;Failed to get danmaku&#34;) ver1.0.1 内容：添加统计功能，优化获取的数据\n">
+<title>使用deepseekAPI来分析B站视频弹幕</title>
+
+<link rel='canonical' href='https://lastrober.github.io/p/%E4%BD%BF%E7%94%A8deepseekapi%E6%9D%A5%E5%88%86%E6%9E%90b%E7%AB%99%E8%A7%86%E9%A2%91%E5%BC%B9%E5%B9%95/'>
+
+<link rel="stylesheet" href="/scss/style.min.663803bebe609202d5b39d848f2d7c2dc8b598a2d879efa079fa88893d29c49c.css"><meta property='og:title' content="使用deepseekAPI来分析B站视频弹幕">
+<meta property='og:description' content="Bilibili 视频数据分析工具 内容： 这是一个用于分析Bilibili视频数据的Python工具。\n可以根据指定的视频CID获取视频信息、用户统计、视频标签、弹幕数据 将数据源传递给deepseek并分析弹幕内容与可视化处理。 功能 获取视频基本信息(标题、时长、作者等) 获取视频作者的粉丝数和关注数 获取视频标签 获取视频弹幕数据 分析弹幕内容和发送时间 生成弹幕时间分布图表 通过Web界面展示分析结果 依赖 Python 3.x requests matplotlib numpy Flask openai (可选,用于AI分析) markdown2 引入头文件 1 2 3 4 5 6 7 8 9 10 11 12 import requests import json import xml.etree.ElementTree as ET from datetime import datetime import matplotlib.pyplot as plt import numpy as np import time from openai import OpenAI from flask import Flask, jsonify, render_template from markdown2 import Markdown from datetime import datetime import urllib3 项目函数构成 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 def get_video_info(video_id): def get_user_stats(mid): def get_video_tags(video_id): def get_danmaku(video_id, max_count=50): def analyze_danmaku(danmaku_list, title, tags, view, danmaku, reply, favorite, coin, share, like): def prepare_chart_data(danmaku_times, duration): def prepare_real_time_data(danmaku_real_times): @app.route(&#39;/&#39;) def get_data(): @app.route(&#39;/get_data&#39;, methods=[&#39;POST&#39;]) def get_bilibili_data(): if __name__ == &#39;__main__&#39;: app.run(debug=True) ver1.0.0 获取视频标题函数 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 def get_video_title(video_id): # 获取视频的标题 url = f&#34;https://api.bilibili.com/x/web-interface/view?bvid={video_id}&#34; headers = { &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39; } response = requests.get(url, headers=headers) if response.status_code != 200: print(f&#34;Failed to get video title, status code: {response.status_code}&#34;) return None try: data = response.json() except json.JSONDecodeError: print(&#34;Failed to decode JSON response&#34;) return None title = data[&#39;data&#39;][&#39;title&#39;] return title 获取视频标签函数 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 def get_video_tags(video_id): # 获取视频的标签 url = f&#34;https://api.bilibili.com/x/tag/archive/tags?bvid={video_id}&#34; headers = { &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39; } response = requests.get(url, headers=headers) if response.status_code != 200: print(f&#34;Failed to get video tags, status code: {response.status_code}&#34;) return None try: data = response.json() except json.JSONDecodeError: print(&#34;Failed to decode JSON response&#34;) return None tags = [tag[&#39;tag_name&#39;] for tag in data[&#39;data&#39;]] return tags 根据视频的CID解析弹幕 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 def get_danmaku(video_id): # 获取视频的cid url = f&#34;https://api.bilibili.com/x/player/pagelist?bvid={video_id}&amp;jsonp=jsonp&#34; headers = { &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39; } response = requests.get(url, headers=headers) if response.status_code != 200: print(f&#34;Failed to get cid, status code: {response.status_code}&#34;) return None try: data = response.json() except json.JSONDecodeError: print(&#34;Failed to decode JSON response&#34;) return None cid = data[&#39;data&#39;][0][&#39;cid&#39;] # 获取弹幕信息 danmaku_url = f&#34;https://api.bilibili.com/x/v1/dm/list.so?oid={cid}&#34; danmaku_response = requests.get(danmaku_url, headers=headers) if danmaku_response.status_code != 200: print(f&#34;Failed to get danmaku, status code: {danmaku_response.status_code}&#34;) return None danmaku_response.encoding = &#39;utf-8&#39; danmaku_data = danmaku_response.text # 解析弹幕XML root = ET.fromstring(danmaku_data) danmaku_list = [d.text for d in root.findall(&#39;.//d&#39;)] danmaku_count = len(danmaku_list) return danmaku_list, danmaku_count 将视频的弹幕转为字符串，并调用deepseekAPI来分析内容 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 def analyze_danmaku(danmaku_list): # 将弹幕列表转换为字符串 danmaku_text = &#34;\\n&#34;.join(danmaku_list) client = OpenAI(api_key=&#34;sk-159747718eeb4e73ba4f002640d7a10a&#34;, base_url=&#34;https://api.deepseek.com&#34;) response = client.chat.completions.create( model=&#34;deepseek-chat&#34;, messages=[ {&#34;role&#34;: &#34;system&#34;, &#34;content&#34;: &#34;下列是一串b站视频弹幕，标题为：&#34;+title+&#34;，tag为：&#34;+tags+&#34;请根据这些内容分析并总结&#34;}, {&#34;role&#34;: &#34;user&#34;, &#34;content&#34;: danmaku_text}, ], stream=False ) resault =response.choices[0].message.content return resault 主函数 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 if __name__ == &#34;__main__&#34;: video_id = &#34;&lt;&lt;视频ID&gt;&gt;&#34; # 替换为你要查询的视频ID title = get_video_title(video_id) if title: print(f&#34;Video Title: {title}&#34;) tags = get_video_tags(video_id) if tags: print(f&#34;Video Tags: {&#39;, &#39;.join(tags)}&#34;) danmaku_list, danmaku_count = get_danmaku(video_id) if danmaku_list: for danmaku in danmaku_list: print(danmaku) print(f&#34;Total danmaku count: {danmaku_count}&#34;) # 调用DeepSeek API分析弹幕内容 analysis_result = analyze_danmaku(danmaku_list) if analysis_result: print(&#34;DeepSeek Analysis Result:&#34;) print(analysis_result) else: print(&#34;Failed to get danmaku&#34;) ver1.0.1 内容：添加统计功能，优化获取的数据\n">
+<meta property='og:url' content='https://lastrober.github.io/p/%E4%BD%BF%E7%94%A8deepseekapi%E6%9D%A5%E5%88%86%E6%9E%90b%E7%AB%99%E8%A7%86%E9%A2%91%E5%BC%B9%E5%B9%95/'>
+<meta property='og:site_name' content='LastRober'>
+<meta property='og:type' content='article'><meta property='article:section' content='Post' /><meta property='article:tag' content='deepseek' /><meta property='article:tag' content='弹幕分析' /><meta property='article:tag' content='ai' /><meta property='article:published_time' content='2025-02-13T16:27:27&#43;08:00'/><meta property='article:modified_time' content='2025-02-13T16:27:27&#43;08:00'/><meta property='og:image' content='https://lastrober.github.io/p/%E4%BD%BF%E7%94%A8deepseekapi%E6%9D%A5%E5%88%86%E6%9E%90b%E7%AB%99%E8%A7%86%E9%A2%91%E5%BC%B9%E5%B9%95/a.jpg' />
+<meta name="twitter:title" content="使用deepseekAPI来分析B站视频弹幕">
+<meta name="twitter:description" content="Bilibili 视频数据分析工具 内容： 这是一个用于分析Bilibili视频数据的Python工具。\n可以根据指定的视频CID获取视频信息、用户统计、视频标签、弹幕数据 将数据源传递给deepseek并分析弹幕内容与可视化处理。 功能 获取视频基本信息(标题、时长、作者等) 获取视频作者的粉丝数和关注数 获取视频标签 获取视频弹幕数据 分析弹幕内容和发送时间 生成弹幕时间分布图表 通过Web界面展示分析结果 依赖 Python 3.x requests matplotlib numpy Flask openai (可选,用于AI分析) markdown2 引入头文件 1 2 3 4 5 6 7 8 9 10 11 12 import requests import json import xml.etree.ElementTree as ET from datetime import datetime import matplotlib.pyplot as plt import numpy as np import time from openai import OpenAI from flask import Flask, jsonify, render_template from markdown2 import Markdown from datetime import datetime import urllib3 项目函数构成 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 def get_video_info(video_id): def get_user_stats(mid): def get_video_tags(video_id): def get_danmaku(video_id, max_count=50): def analyze_danmaku(danmaku_list, title, tags, view, danmaku, reply, favorite, coin, share, like): def prepare_chart_data(danmaku_times, duration): def prepare_real_time_data(danmaku_real_times): @app.route(&#39;/&#39;) def get_data(): @app.route(&#39;/get_data&#39;, methods=[&#39;POST&#39;]) def get_bilibili_data(): if __name__ == &#39;__main__&#39;: app.run(debug=True) ver1.0.0 获取视频标题函数 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 def get_video_title(video_id): # 获取视频的标题 url = f&#34;https://api.bilibili.com/x/web-interface/view?bvid={video_id}&#34; headers = { &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39; } response = requests.get(url, headers=headers) if response.status_code != 200: print(f&#34;Failed to get video title, status code: {response.status_code}&#34;) return None try: data = response.json() except json.JSONDecodeError: print(&#34;Failed to decode JSON response&#34;) return None title = data[&#39;data&#39;][&#39;title&#39;] return title 获取视频标签函数 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 def get_video_tags(video_id): # 获取视频的标签 url = f&#34;https://api.bilibili.com/x/tag/archive/tags?bvid={video_id}&#34; headers = { &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39; } response = requests.get(url, headers=headers) if response.status_code != 200: print(f&#34;Failed to get video tags, status code: {response.status_code}&#34;) return None try: data = response.json() except json.JSONDecodeError: print(&#34;Failed to decode JSON response&#34;) return None tags = [tag[&#39;tag_name&#39;] for tag in data[&#39;data&#39;]] return tags 根据视频的CID解析弹幕 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 def get_danmaku(video_id): # 获取视频的cid url = f&#34;https://api.bilibili.com/x/player/pagelist?bvid={video_id}&amp;jsonp=jsonp&#34; headers = { &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39; } response = requests.get(url, headers=headers) if response.status_code != 200: print(f&#34;Failed to get cid, status code: {response.status_code}&#34;) return None try: data = response.json() except json.JSONDecodeError: print(&#34;Failed to decode JSON response&#34;) return None cid = data[&#39;data&#39;][0][&#39;cid&#39;] # 获取弹幕信息 danmaku_url = f&#34;https://api.bilibili.com/x/v1/dm/list.so?oid={cid}&#34; danmaku_response = requests.get(danmaku_url, headers=headers) if danmaku_response.status_code != 200: print(f&#34;Failed to get danmaku, status code: {danmaku_response.status_code}&#34;) return None danmaku_response.encoding = &#39;utf-8&#39; danmaku_data = danmaku_response.text # 解析弹幕XML root = ET.fromstring(danmaku_data) danmaku_list = [d.text for d in root.findall(&#39;.//d&#39;)] danmaku_count = len(danmaku_list) return danmaku_list, danmaku_count 将视频的弹幕转为字符串，并调用deepseekAPI来分析内容 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 def analyze_danmaku(danmaku_list): # 将弹幕列表转换为字符串 danmaku_text = &#34;\\n&#34;.join(danmaku_list) client = OpenAI(api_key=&#34;sk-159747718eeb4e73ba4f002640d7a10a&#34;, base_url=&#34;https://api.deepseek.com&#34;) response = client.chat.completions.create( model=&#34;deepseek-chat&#34;, messages=[ {&#34;role&#34;: &#34;system&#34;, &#34;content&#34;: &#34;下列是一串b站视频弹幕，标题为：&#34;+title+&#34;，tag为：&#34;+tags+&#34;请根据这些内容分析并总结&#34;}, {&#34;role&#34;: &#34;user&#34;, &#34;content&#34;: danmaku_text}, ], stream=False ) resault =response.choices[0].message.content return resault 主函数 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 if __name__ == &#34;__main__&#34;: video_id = &#34;&lt;&lt;视频ID&gt;&gt;&#34; # 替换为你要查询的视频ID title = get_video_title(video_id) if title: print(f&#34;Video Title: {title}&#34;) tags = get_video_tags(video_id) if tags: print(f&#34;Video Tags: {&#39;, &#39;.join(tags)}&#34;) danmaku_list, danmaku_count = get_danmaku(video_id) if danmaku_list: for danmaku in danmaku_list: print(danmaku) print(f&#34;Total danmaku count: {danmaku_count}&#34;) # 调用DeepSeek API分析弹幕内容 analysis_result = analyze_danmaku(danmaku_list) if analysis_result: print(&#34;DeepSeek Analysis Result:&#34;) print(analysis_result) else: print(&#34;Failed to get danmaku&#34;) ver1.0.1 内容：添加统计功能，优化获取的数据\n"><meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content='https://lastrober.github.io/p/%E4%BD%BF%E7%94%A8deepseekapi%E6%9D%A5%E5%88%86%E6%9E%90b%E7%AB%99%E8%A7%86%E9%A2%91%E5%BC%B9%E5%B9%95/a.jpg' />
+    </head>
+    <body class="
+    article-page
+    ">
+    <script>
+        (function() {
+            const colorSchemeKey = 'StackColorScheme';
+            if(!localStorage.getItem(colorSchemeKey)){
+                localStorage.setItem(colorSchemeKey, "auto");
+            }
+        })();
+    </script><script>
+    (function() {
+        const colorSchemeKey = 'StackColorScheme';
+        const colorSchemeItem = localStorage.getItem(colorSchemeKey);
+        const supportDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches === true;
+
+        if (colorSchemeItem == 'dark' || colorSchemeItem === 'auto' && supportDarkMode) {
+            
+
+            document.documentElement.dataset.scheme = 'dark';
+        } else {
+            document.documentElement.dataset.scheme = 'light';
+        }
+    })();
+</script>
+<div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky ">
+    <button class="hamburger hamburger--spin" type="button" id="toggle-menu" aria-label="切换菜单">
+        <span class="hamburger-box">
+            <span class="hamburger-inner"></span>
+        </span>
+    </button>
+
+    <header>
+        
+            
+            <figure class="site-avatar">
+                <a href="/">
+                
+                    
+                    
+                    
+                        
+                        <img src="/img/avatar_hu_41b989c617b33add.png" width="300"
+                            height="300" class="site-logo" loading="lazy" alt="Avatar">
+                    
+                
+                </a>
+                
+                    <span class="emoji">🫠</span>
+                
+            </figure>
+            
+        
+        
+        <div class="site-meta">
+            <h1 class="site-name"><a href="/">LastRober</a></h1>
+            <h2 class="site-description">大🐟若智</h2>
+        </div>
+    </header><ol class="menu-social">
+            
+                <li>
+                    <a 
+                        href='https://space.bilibili.com/177969790?spm_id_from=333.337.0.0'
+                        target="_blank"
+                        title="Bilibili"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-brand-bilibili"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 10a4 4 0 0 1 4 -4h10a4 4 0 0 1 4 4v6a4 4 0 0 1 -4 4h-10a4 4 0 0 1 -4 -4v-6z" /><path d="M8 3l2 3" /><path d="M16 3l-2 3" /><path d="M9 13v-2" /><path d="M15 11v2" /></svg>
+                        
+                    </a>
+                </li>
+            
+                <li>
+                    <a 
+                        href='https://github.com/LASTROBER'
+                        target="_blank"
+                        title="GitHub"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+</svg>
+
+
+
+                        
+                    </a>
+                </li>
+            
+                <li>
+                    <a 
+                        href='https://www.zhihu.com/people/lastrober'
+                        target="_blank"
+                        title="知乎"
+                        rel="me"
+                    >
+                        
+                        
+                            <svg  xmlns="http://www.w3.org/2000/svg"  width="24"  height="24"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-align-box-left-top"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 3m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M9 13h-2" /><path d="M13 10h-6" /><path d="M11 7h-4" /></svg>
+                        
+                    </a>
+                </li>
+            
+        </ol><ol class="menu" id="main-menu">
+        
+        
+        
+        <li >
+            <a href='/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <polyline points="5 12 3 12 12 3 21 12 19 12" />
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7" />
+  <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6" />
+</svg>
+
+
+
+                
+                <span>主页</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/%E5%85%B3%E4%BA%8E/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-user" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="7" r="4" />
+  <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+</svg>
+
+
+
+                
+                <span>关于</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/archives/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <rect x="3" y="4" width="18" height="4" rx="2" />
+  <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" />
+  <line x1="10" y1="12" x2="14" y2="12" />
+</svg>
+
+
+
+                
+                <span>档案</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/search/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="10" cy="10" r="7" />
+  <line x1="21" y1="21" x2="15" y2="15" />
+</svg>
+
+
+
+                
+                <span>搜索</span>
+            </a>
+        </li>
+        
+        
+        <li >
+            <a href='/%E5%8F%8B%E6%83%85%E8%BF%9E%E6%8E%A5/' >
+                
+                
+                
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" />
+  <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" />
+</svg>
+
+
+
+                
+                <span>友情连接</span>
+            </a>
+        </li>
+        
+        <li class="menu-bottom-section">
+            <ol class="menu">
+                    
+                        <li id="i18n-switch">  
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-language" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+  <path d="M4 5h7" />
+  <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+  <path d="M5 9c-.003 2.144 2.952 3.908 6.7 4" />
+  <path d="M12 20l4 -9l4 9" />
+  <path d="M19.1 18h-6.2" />
+</svg>
+
+
+
+                            <select name="language" title="language" onchange="window.location.href = this.selectedOptions[0].value">
+                                
+                                    <option value="https://lastrober.github.io/en/" >English</option>
+                                
+                                    <option value="https://lastrober.github.io/" selected>简体中文</option>
+                                
+                            </select>
+                        </li>
+                    
+                
+
+                
+                    <li id="dark-mode-toggle">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="8" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="16" cy="12" r="2" />
+  <rect x="2" y="6" width="20" height="12" rx="6" />
+</svg>
+
+
+
+                        <span>暗色模式</span>
+                    </li>
+                
+            </ol>
+        </li>
+    </ol>
+</aside>
+
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li>
+      <ol>
+        <li><a href="#内容">内容：</a></li>
+        <li><a href="#功能">功能</a></li>
+        <li><a href="#依赖">依赖</a></li>
+        <li><a href="#引入头文件">引入头文件</a></li>
+      </ol>
+    </li>
+    <li><a href="#项目函数构成">项目函数构成</a></li>
+    <li><a href="#ver100">ver1.0.0</a>
+      <ol>
+        <li><a href="#获取视频标题函数">获取视频标题函数</a></li>
+        <li><a href="#获取视频标签函数">获取视频标签函数</a></li>
+        <li><a href="#根据视频的cid解析弹幕">根据视频的CID解析弹幕</a></li>
+        <li><a href="#将视频的弹幕转为字符串并调用deepseekapi来分析内容">将视频的弹幕转为字符串，并调用deepseekAPI来分析内容</a></li>
+        <li><a href="#主函数">主函数</a></li>
+      </ol>
+    </li>
+    <li><a href="#ver101">ver1.0.1</a>
+      <ol>
+        <li><a href="#优化获取该视频更详细的数据">优化———获取该视频更详细的数据</a></li>
+        <li><a href="#优化传递多元化数据">优化———传递多元化数据</a></li>
+        <li><a href="#绘制统计图">绘制统计图</a></li>
+        <li><a href="#获取用户的关注数和粉丝数">获取用户的关注数和粉丝数</a></li>
+      </ol>
+    </li>
+    <li><a href="#ver102">ver1.0.2</a>
+      <ol>
+        <li><a href="#格式化输出">格式化输出：</a></li>
+        <li><a href="#flask框架">Flask框架</a></li>
+        <li><a href="#优化数据展示">优化数据展示</a></li>
+      </ol>
+    </li>
+    <li><a href="#阶段成功展示">阶段成功展示：</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
+
+            <main class="main full-width">
+    <article class="has-image main-article">
+    <header class="article-header">
+        <div class="article-image">
+            <a href="/p/%E4%BD%BF%E7%94%A8deepseekapi%E6%9D%A5%E5%88%86%E6%9E%90b%E7%AB%99%E8%A7%86%E9%A2%91%E5%BC%B9%E5%B9%95/">
+                <img src="/p/%E4%BD%BF%E7%94%A8deepseekapi%E6%9D%A5%E5%88%86%E6%9E%90b%E7%AB%99%E8%A7%86%E9%A2%91%E5%BC%B9%E5%B9%95/a_hu_5a3a51c928a19fdd.jpg"
+                        srcset="/p/%E4%BD%BF%E7%94%A8deepseekapi%E6%9D%A5%E5%88%86%E6%9E%90b%E7%AB%99%E8%A7%86%E9%A2%91%E5%BC%B9%E5%B9%95/a_hu_5a3a51c928a19fdd.jpg 800w, /p/%E4%BD%BF%E7%94%A8deepseekapi%E6%9D%A5%E5%88%86%E6%9E%90b%E7%AB%99%E8%A7%86%E9%A2%91%E5%BC%B9%E5%B9%95/a_hu_9b1c3611f3de6c8e.jpg 1600w"
+                        width="800" 
+                        height="559" 
+                        loading="lazy"
+                        alt="Featured image of post 使用deepseekAPI来分析B站视频弹幕" />
+                
+            </a>
+        </div>
+    
+
+    <div class="article-details">
+    
+    <header class="article-category">
+        
+            <a href="/categories/deepseek/" >
+                Deepseek
+            </a>
+        
+            <a href="/categories/%E5%BC%B9%E5%B9%95%E5%88%86%E6%9E%90/" >
+                弹幕分析
+            </a>
+        
+            <a href="/categories/ai/" >
+                AI
+            </a>
+        
+    </header>
+    
+
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="/p/%E4%BD%BF%E7%94%A8deepseekapi%E6%9D%A5%E5%88%86%E6%9E%90b%E7%AB%99%E8%A7%86%E9%A2%91%E5%BC%B9%E5%B9%95/">使用deepseekAPI来分析B站视频弹幕</a>
+        </h2>
+    
+        
+    </div>
+
+    
+    
+    
+    
+    <footer class="article-time">
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+  <circle cx="18" cy="18" r="4" />
+  <path d="M15 3v4" />
+  <path d="M7 3v4" />
+  <path d="M3 11h16" />
+  <path d="M18 16.496v1.504l1 1" />
+</svg>
+                <time class="article-time--published">2025-02-13</time>
+            </div>
+        
+
+        
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <circle cx="12" cy="12" r="9" />
+  <polyline points="12 7 12 12 15 15" />
+</svg>
+
+
+
+                <time class="article-time--reading">
+                    阅读时长: 7 分钟
+                </time>
+            </div>
+        
+    </footer>
+    
+
+    
+</div>
+
+</header>
+
+    <section class="article-content">
+    
+    
+    <h1 id="bilibili-视频数据分析工具">Bilibili 视频数据分析工具
+</h1><h3 id="内容">内容：
+</h3><p>这是一个用于分析Bilibili视频数据的Python工具。</p>
+<ul>
+<li>可以根据指定的<strong>视频CID</strong>获取视频信息、用户统计、视频标签、弹幕数据</li>
+<li>将数据源传递给deepseek并分析弹幕内容与可视化处理。</li>
+</ul>
+<h3 id="功能">功能
+</h3><ul>
+<li>获取视频基本信息(标题、时长、作者等)</li>
+<li>获取视频作者的粉丝数和关注数</li>
+<li>获取视频标签</li>
+<li>获取视频弹幕数据</li>
+<li>分析弹幕内容和发送时间</li>
+<li>生成弹幕时间分布图表</li>
+<li>通过Web界面展示分析结果</li>
+</ul>
+<h3 id="依赖">依赖
+</h3><ul>
+<li>Python 3.x</li>
+<li>requests</li>
+<li>matplotlib</li>
+<li>numpy</li>
+<li>Flask</li>
+<li>openai (可选,用于AI分析)</li>
+<li>markdown2</li>
+</ul>
+<h3 id="引入头文件">引入头文件
+</h3><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">import requests
+</span></span><span class="line"><span class="cl">import json
+</span></span><span class="line"><span class="cl">import xml.etree.ElementTree as ET
+</span></span><span class="line"><span class="cl">from datetime import datetime
+</span></span><span class="line"><span class="cl">import matplotlib.pyplot as plt
+</span></span><span class="line"><span class="cl">import numpy as np
+</span></span><span class="line"><span class="cl">import time
+</span></span><span class="line"><span class="cl">from openai import OpenAI
+</span></span><span class="line"><span class="cl">from flask import Flask, jsonify, render_template
+</span></span><span class="line"><span class="cl">from markdown2 import Markdown
+</span></span><span class="line"><span class="cl">from datetime import datetime
+</span></span><span class="line"><span class="cl">import urllib3
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="项目函数构成">项目函数构成
+</h2><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">def get_video_info(video_id):
+</span></span><span class="line"><span class="cl">def get_user_stats(mid):
+</span></span><span class="line"><span class="cl">def get_video_tags(video_id):
+</span></span><span class="line"><span class="cl">def get_danmaku(video_id, max_count=50):
+</span></span><span class="line"><span class="cl">def analyze_danmaku(danmaku_list, title, tags, view, danmaku, reply, favorite, coin, share, like):
+</span></span><span class="line"><span class="cl">def prepare_chart_data(danmaku_times, duration):
+</span></span><span class="line"><span class="cl">def prepare_real_time_data(danmaku_real_times):
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">@app.route(&#39;/&#39;)
+</span></span><span class="line"><span class="cl">def get_data():
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">@app.route(&#39;/get_data&#39;, methods=[&#39;POST&#39;])
+</span></span><span class="line"><span class="cl">def get_bilibili_data():
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">if __name__ == &#39;__main__&#39;:
+</span></span><span class="line"><span class="cl">    app.run(debug=True)
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="ver100">ver1.0.0
+</h2><h3 id="获取视频标题函数">获取视频标题函数
+</h3><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">def get_video_title(video_id):
+</span></span><span class="line"><span class="cl">    # 获取视频的标题
+</span></span><span class="line"><span class="cl">    url = f&#34;https://api.bilibili.com/x/web-interface/view?bvid={video_id}&#34;
+</span></span><span class="line"><span class="cl">    headers = {
+</span></span><span class="line"><span class="cl">        &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39;
+</span></span><span class="line"><span class="cl">    }
+</span></span><span class="line"><span class="cl">    response = requests.get(url, headers=headers)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    if response.status_code != 200:
+</span></span><span class="line"><span class="cl">        print(f&#34;Failed to get video title, status code: {response.status_code}&#34;)
+</span></span><span class="line"><span class="cl">        return None
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    try:
+</span></span><span class="line"><span class="cl">        data = response.json()
+</span></span><span class="line"><span class="cl">    except json.JSONDecodeError:
+</span></span><span class="line"><span class="cl">        print(&#34;Failed to decode JSON response&#34;)
+</span></span><span class="line"><span class="cl">        return None
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    title = data[&#39;data&#39;][&#39;title&#39;]
+</span></span><span class="line"><span class="cl">    return title
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="获取视频标签函数">获取视频标签函数
+</h3><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">def get_video_tags(video_id):
+</span></span><span class="line"><span class="cl">    # 获取视频的标签
+</span></span><span class="line"><span class="cl">    url = f&#34;https://api.bilibili.com/x/tag/archive/tags?bvid={video_id}&#34;
+</span></span><span class="line"><span class="cl">    headers = {
+</span></span><span class="line"><span class="cl">        &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39;
+</span></span><span class="line"><span class="cl">    }
+</span></span><span class="line"><span class="cl">    response = requests.get(url, headers=headers)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    if response.status_code != 200:
+</span></span><span class="line"><span class="cl">        print(f&#34;Failed to get video tags, status code: {response.status_code}&#34;)
+</span></span><span class="line"><span class="cl">        return None
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    try:
+</span></span><span class="line"><span class="cl">        data = response.json()
+</span></span><span class="line"><span class="cl">    except json.JSONDecodeError:
+</span></span><span class="line"><span class="cl">        print(&#34;Failed to decode JSON response&#34;)
+</span></span><span class="line"><span class="cl">        return None
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    tags = [tag[&#39;tag_name&#39;] for tag in data[&#39;data&#39;]]
+</span></span><span class="line"><span class="cl">    return tags
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="根据视频的cid解析弹幕">根据视频的CID解析弹幕
+</h3><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">def get_danmaku(video_id):
+</span></span><span class="line"><span class="cl">    # 获取视频的cid
+</span></span><span class="line"><span class="cl">    url = f&#34;https://api.bilibili.com/x/player/pagelist?bvid={video_id}&amp;jsonp=jsonp&#34;
+</span></span><span class="line"><span class="cl">    headers = {
+</span></span><span class="line"><span class="cl">        &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39;
+</span></span><span class="line"><span class="cl">    }
+</span></span><span class="line"><span class="cl">    response = requests.get(url, headers=headers)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    if response.status_code != 200:
+</span></span><span class="line"><span class="cl">        print(f&#34;Failed to get cid, status code: {response.status_code}&#34;)
+</span></span><span class="line"><span class="cl">        return None
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    try:
+</span></span><span class="line"><span class="cl">        data = response.json()
+</span></span><span class="line"><span class="cl">    except json.JSONDecodeError:
+</span></span><span class="line"><span class="cl">        print(&#34;Failed to decode JSON response&#34;)
+</span></span><span class="line"><span class="cl">        return None
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    cid = data[&#39;data&#39;][0][&#39;cid&#39;]
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    # 获取弹幕信息
+</span></span><span class="line"><span class="cl">    danmaku_url = f&#34;https://api.bilibili.com/x/v1/dm/list.so?oid={cid}&#34;
+</span></span><span class="line"><span class="cl">    danmaku_response = requests.get(danmaku_url, headers=headers)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    if danmaku_response.status_code != 200:
+</span></span><span class="line"><span class="cl">        print(f&#34;Failed to get danmaku, status code: {danmaku_response.status_code}&#34;)
+</span></span><span class="line"><span class="cl">        return None
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    danmaku_response.encoding = &#39;utf-8&#39;
+</span></span><span class="line"><span class="cl">    danmaku_data = danmaku_response.text
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    # 解析弹幕XML
+</span></span><span class="line"><span class="cl">    root = ET.fromstring(danmaku_data)
+</span></span><span class="line"><span class="cl">    danmaku_list = [d.text for d in root.findall(&#39;.//d&#39;)]
+</span></span><span class="line"><span class="cl">    danmaku_count = len(danmaku_list)
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    return danmaku_list, danmaku_count
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="将视频的弹幕转为字符串并调用deepseekapi来分析内容">将视频的弹幕转为字符串，并调用deepseekAPI来分析内容
+</h3><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">def analyze_danmaku(danmaku_list):
+</span></span><span class="line"><span class="cl">    # 将弹幕列表转换为字符串
+</span></span><span class="line"><span class="cl">    danmaku_text = &#34;\n&#34;.join(danmaku_list)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    client = OpenAI(api_key=&#34;sk-159747718eeb4e73ba4f002640d7a10a&#34;, base_url=&#34;https://api.deepseek.com&#34;)
+</span></span><span class="line"><span class="cl">    response = client.chat.completions.create(
+</span></span><span class="line"><span class="cl">        model=&#34;deepseek-chat&#34;,
+</span></span><span class="line"><span class="cl">        messages=[
+</span></span><span class="line"><span class="cl">            {&#34;role&#34;: &#34;system&#34;, &#34;content&#34;: &#34;下列是一串b站视频弹幕，标题为：&#34;+title+&#34;，tag为：&#34;+tags+&#34;请根据这些内容分析并总结&#34;},
+</span></span><span class="line"><span class="cl">            {&#34;role&#34;: &#34;user&#34;, &#34;content&#34;: danmaku_text},
+</span></span><span class="line"><span class="cl">        ],
+</span></span><span class="line"><span class="cl">        stream=False
+</span></span><span class="line"><span class="cl">    )
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    resault =response.choices[0].message.content
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    return resault
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="主函数">主函数
+</h3><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">if __name__ == &#34;__main__&#34;:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    video_id = &#34;&lt;&lt;视频ID&gt;&gt;&#34;  # 替换为你要查询的视频ID
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    title = get_video_title(video_id)
+</span></span><span class="line"><span class="cl">    if title:
+</span></span><span class="line"><span class="cl">        print(f&#34;Video Title: {title}&#34;)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    tags = get_video_tags(video_id)
+</span></span><span class="line"><span class="cl">    if tags:
+</span></span><span class="line"><span class="cl">        print(f&#34;Video Tags: {&#39;, &#39;.join(tags)}&#34;)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    danmaku_list, danmaku_count = get_danmaku(video_id)
+</span></span><span class="line"><span class="cl">    if danmaku_list:
+</span></span><span class="line"><span class="cl">        for danmaku in danmaku_list:
+</span></span><span class="line"><span class="cl">            print(danmaku)
+</span></span><span class="line"><span class="cl">        print(f&#34;Total danmaku count: {danmaku_count}&#34;)
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        # 调用DeepSeek API分析弹幕内容
+</span></span><span class="line"><span class="cl">        analysis_result = analyze_danmaku(danmaku_list)
+</span></span><span class="line"><span class="cl">        if analysis_result:
+</span></span><span class="line"><span class="cl">            print(&#34;DeepSeek Analysis Result:&#34;)
+</span></span><span class="line"><span class="cl">            print(analysis_result)
+</span></span><span class="line"><span class="cl">    else:
+</span></span><span class="line"><span class="cl">        print(&#34;Failed to get danmaku&#34;)
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h2 id="ver101">ver1.0.1
+</h2><p>内容：添加统计功能，优化获取的数据</p>
+<h3 id="优化获取该视频更详细的数据">优化———获取该视频更详细的数据
+</h3><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">def get_video_info(video_id):
+</span></span><span class="line"><span class="cl">    # 获取视频的标题、时长、作者及其他详细信息
+</span></span><span class="line"><span class="cl">    url = f&#34;https://api.bilibili.com/x/web-interface/view?bvid={video_id}&#34;
+</span></span><span class="line"><span class="cl">    headers = {
+</span></span><span class="line"><span class="cl">        &#39;User-Agent&#39;: &#39;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3&#39;
+</span></span><span class="line"><span class="cl">    }
+</span></span><span class="line"><span class="cl">    response = requests.get(url, headers=headers)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    if response.status_code != 200:
+</span></span><span class="line"><span class="cl">        print(f&#34;Failed to get video info, status code: {response.status_code}&#34;)
+</span></span><span class="line"><span class="cl">        return None, None, None, None, None, None, None, None, None, None, None
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    try:
+</span></span><span class="line"><span class="cl">        data = response.json()
+</span></span><span class="line"><span class="cl">    except json.JSONDecodeError:
+</span></span><span class="line"><span class="cl">        print(&#34;Failed to decode JSON response&#34;)
+</span></span><span class="line"><span class="cl">        return None, None, None, None, None, None, None, None, None, None, None
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    title = data[&#39;data&#39;][&#39;title&#39;]
+</span></span><span class="line"><span class="cl">    duration = data[&#39;data&#39;][&#39;duration&#39;]  # 视频时长，单位为秒
+</span></span><span class="line"><span class="cl">    author = data[&#39;data&#39;][&#39;owner&#39;][&#39;name&#39;]
+</span></span><span class="line"><span class="cl">    author_mid = data[&#39;data&#39;][&#39;owner&#39;][&#39;mid&#39;]
+</span></span><span class="line"><span class="cl">    pubdate = datetime.fromtimestamp(data[&#39;data&#39;][&#39;pubdate&#39;])  # 视频发布时间
+</span></span><span class="line"><span class="cl">    view = data[&#39;data&#39;][&#39;stat&#39;][&#39;view&#39;]  # 播放数
+</span></span><span class="line"><span class="cl">    danmaku = data[&#39;data&#39;][&#39;stat&#39;][&#39;danmaku&#39;]  # 弹幕数
+</span></span><span class="line"><span class="cl">    reply = data[&#39;data&#39;][&#39;stat&#39;][&#39;reply&#39;]  # 评论数
+</span></span><span class="line"><span class="cl">    favorite = data[&#39;data&#39;][&#39;stat&#39;][&#39;favorite&#39;]  # 收藏数
+</span></span><span class="line"><span class="cl">    coin = data[&#39;data&#39;][&#39;stat&#39;][&#39;coin&#39;]  # 投币数
+</span></span><span class="line"><span class="cl">    share = data[&#39;data&#39;][&#39;stat&#39;][&#39;share&#39;]  # 分享数
+</span></span><span class="line"><span class="cl">    like = data[&#39;data&#39;][&#39;stat&#39;][&#39;like&#39;]  # 点赞数
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    return title, duration, author, author_mid, pubdate, view, danmaku, reply, favorite, coin, share, like
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="优化传递多元化数据">优化———传递多元化数据
+</h3><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">def analyze_danmaku(danmaku_list, title, tags, view, danmaku, reply, favorite, coin, share, like):
+</span></span><span class="line"><span class="cl">    # 将弹幕内容转换为字符串
+</span></span><span class="line"><span class="cl">    danmaku_text = &#34;\n&#34;.join([text for _, text in danmaku_list])
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    client = OpenAI(api_key=&#34;sk-159747718eeb4e73ba4f002640d7a10a&#34;, base_url=&#34;https://api.deepseek.com&#34;)
+</span></span><span class="line"><span class="cl">    response = client.chat.completions.create(
+</span></span><span class="line"><span class="cl">        model=&#34;deepseek-chat&#34;,
+</span></span><span class="line"><span class="cl">        messages=[
+</span></span><span class="line"><span class="cl">            {&#34;role&#34;: &#34;system&#34;, &#34;content&#34;: &#34;下列是一串b站视频弹幕，标题为：&#34; + title + &#34;，tag为：&#34; + &#39;, &#39;.join(tags) + &#34;播放量为：&#34;+str(view)+&#34;,弹幕数为：&#34;+str(danmaku)+&#34;,评论数为：&#34;+str(reply)+&#34;,分享数为：&#34;+str(share)+&#34;,点赞数为&#34;+str(like)+&#34;，收藏数为：&#34;+str(favorite)+&#34;，硬币数为&#34;+str(coin)+&#34;。请根据这些内容分析并总结，内容包括：1、概括弹幕内容；2、分析弹幕的情绪；3、分析所提供的数据；4、根据这些数据提出合理化的建议，并给出理由。&#34;},
+</span></span><span class="line"><span class="cl">            {&#34;role&#34;: &#34;user&#34;, &#34;content&#34;: danmaku_text},
+</span></span><span class="line"><span class="cl">        ],
+</span></span><span class="line"><span class="cl">        stream=False
+</span></span><span class="line"><span class="cl">    )
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    result = response.choices[0].message.content
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    return result
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="绘制统计图">绘制统计图
+</h3><ul>
+<li>绘制相对于<strong>视频时间</strong>的热度直方图</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">def plot_danmaku_ratios(danmaku_times, duration):
+</span></span><span class="line"><span class="cl">    # 将弹幕时间转换为相对于视频总长度的占比
+</span></span><span class="line"><span class="cl">    danmaku_ratios = [time / duration for time in danmaku_times]
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    # 根据视频时长划分时间段
+</span></span><span class="line"><span class="cl">    bins = np.linspace(0, 1, 21)  # 将视频分成20个时间段，每个时间段占比5%
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    # 绘制直方图
+</span></span><span class="line"><span class="cl">    counts, _, _ = plt.hist(danmaku_ratios, bins=bins, edgecolor=&#39;black&#39;, align=&#39;left&#39;)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    # 绘制曲线图
+</span></span><span class="line"><span class="cl">    bin_centers = 0.5 * (bins[1:] + bins[:-1])
+</span></span><span class="line"><span class="cl">    plt.plot(bin_centers, counts, &#39;-o&#39;, color=&#39;red&#39;)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    plt.xlabel(&#39;时间占比&#39;)
+</span></span><span class="line"><span class="cl">    plt.ylabel(&#39;弹幕数量&#39;)
+</span></span><span class="line"><span class="cl">    plt.title(&#39;弹幕时间分布（按时间占比）&#39;)
+</span></span><span class="line"><span class="cl">    plt.xticks(bins, [f&#39;{int(b*100)}%&#39; for b in bins])
+</span></span><span class="line"><span class="cl">    plt.show()
+</span></span></code></pre></td></tr></table>
+</div>
+</div><ul>
+<li>绘制相对于<strong>现实时间</strong>的热度直方图</li>
+</ul>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">def plot_danmaku_real_times(danmaku_real_times):
+</span></span><span class="line"><span class="cl">    # 将弹幕实际发送时间转换为小时
+</span></span><span class="line"><span class="cl">    danmaku_hours = [time.hour for time in danmaku_real_times]
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    # 绘制一天中发送弹幕的统计直方图
+</span></span><span class="line"><span class="cl">    bins = np.arange(0, 25)  # 24小时制
+</span></span><span class="line"><span class="cl">    counts, _, _ = plt.hist(danmaku_hours, bins=bins, edgecolor=&#39;black&#39;, align=&#39;left&#39;)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    # 绘制曲线图
+</span></span><span class="line"><span class="cl">    bin_centers = 0.5 * (bins[1:] + bins[:-1])
+</span></span><span class="line"><span class="cl">    plt.plot(bin_centers, counts, &#39;-o&#39;, color=&#39;red&#39;)
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    plt.xlabel(&#39;时间 (小时)&#39;)
+</span></span><span class="line"><span class="cl">    plt.ylabel(&#39;弹幕数量&#39;)
+</span></span><span class="line"><span class="cl">    plt.title(&#39;一天中弹幕发送时间分布&#39;)
+</span></span><span class="line"><span class="cl">    plt.xticks(bins)
+</span></span><span class="line"><span class="cl">    plt.show()
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="获取用户的关注数和粉丝数">获取用户的关注数和粉丝数
+</h3><div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">def get_user_stats(mid):
+</span></span><span class="line"><span class="cl">    # 获取用户的关注数和粉丝数
+</span></span><span class="line"><span class="cl">    url = &#34;https://api.bilibili.com/x/relation/stat&#34;
+</span></span><span class="line"><span class="cl">    params = {
+</span></span><span class="line"><span class="cl">        &#34;vmid&#34;: mid,
+</span></span><span class="line"><span class="cl">        &#34;jsonp&#34;: &#34;jsonp&#34;
+</span></span><span class="line"><span class="cl">    }
+</span></span><span class="line"><span class="cl">    headers = {
+</span></span><span class="line"><span class="cl">        &#34;User-Agent&#34;: &#34;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36&#34;
+</span></span><span class="line"><span class="cl">    }
+</span></span><span class="line"><span class="cl">    response = requests.get(url, params=params, headers=headers)
+</span></span><span class="line"><span class="cl">    if response.status_code != 200:
+</span></span><span class="line"><span class="cl">        print(f&#34;Failed to get user stats, status code: {response.status_code}&#34;)
+</span></span><span class="line"><span class="cl">        return None, None
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    try:
+</span></span><span class="line"><span class="cl">        data = response.json()
+</span></span><span class="line"><span class="cl">    except json.JSONDecodeError:
+</span></span><span class="line"><span class="cl">        print(&#34;Failed to decode JSON response&#34;)
+</span></span><span class="line"><span class="cl">        return None, None
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    if data.get(&#34;code&#34;) == 0:
+</span></span><span class="line"><span class="cl">        following = data[&#34;data&#34;][&#34;following&#34;]
+</span></span><span class="line"><span class="cl">        follower = data[&#34;data&#34;][&#34;follower&#34;]
+</span></span><span class="line"><span class="cl">        return following, follower
+</span></span><span class="line"><span class="cl">    else:
+</span></span><span class="line"><span class="cl">        print(&#34;Failed to get user stats, response code:&#34;, data.get(&#34;code&#34;))
+</span></span><span class="line"><span class="cl">        return None, None
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p><a class="link" href="https://github.com/LASTROBER/BiliBili-Danmaku-Analyse"  target="_blank" rel="noopener"
+    >github仓库地址(私有)</a></p>
+<h2 id="ver102">ver1.0.2
+</h2><p>内容：在web前端使用Flask部署、chart.js优化数据展示、提供动态查询页面</p>
+<p>chart.js的script路径配置：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">   &lt;script src=&#34;https://cdn.jsdelivr.net/npm/chart.js&#34;&gt;&lt;/script&gt;
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="格式化输出">格式化输出：
+</h3><p>各函数return返回结果改为json格式
+eg1：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">    return json.dumps({
+</span></span><span class="line"><span class="cl">        &#34;title&#34;: title,
+</span></span><span class="line"><span class="cl">        &#34;duration&#34;: duration,
+</span></span><span class="line"><span class="cl">        &#34;author&#34;: author,
+</span></span><span class="line"><span class="cl">        &#34;author_mid&#34;: author_mid,
+</span></span><span class="line"><span class="cl">        &#34;pubdate&#34;: pubdate.isoformat(),
+</span></span><span class="line"><span class="cl">        &#34;view&#34;: view,
+</span></span><span class="line"><span class="cl">        &#34;danmaku&#34;: danmaku,
+</span></span><span class="line"><span class="cl">        &#34;reply&#34;: reply,
+</span></span><span class="line"><span class="cl">        &#34;favorite&#34;: favorite,
+</span></span><span class="line"><span class="cl">        &#34;coin&#34;: coin,
+</span></span><span class="line"><span class="cl">        &#34;share&#34;: share,
+</span></span><span class="line"><span class="cl">        &#34;l    })
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>eg2：</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">  return json.dumps({
+</span></span><span class="line"><span class="cl">        &#34;danmaku_list&#34;: danmaku_list,
+</span></span><span class="line"><span class="cl">        &#34;danmaku_times&#34;: danmaku_times,
+</span></span><span class="line"><span class="cl">        &#34;danmaku_real_times&#34;: [time.isoformat() for time in danmaku_real_times],
+</span></span><span class="line"><span class="cl">        &#34;danmaku_count&#34;: danmaku_count
+</span></span><span class="line"><span class="cl">    })
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="flask框架">Flask框架
+</h3><p>app.route路径中添加get_data函数，返回json格式数据，并且需要创建一个index.html页面（放在templates文件夹中），在index.html页面中使用data展示数据</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-fallback" data-lang="fallback"><span class="line"><span class="cl">app = Flask(__name__)
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">@app.route(&#39;/&#39;)
+</span></span><span class="line"><span class="cl">def get_data():
+</span></span><span class="line"><span class="cl">    data = get_bilibili_data()
+</span></span><span class="line"><span class="cl">    return render_template(&#39;index.html&#39;, data=jsonify(data))
+</span></span></code></pre></td></tr></table>
+</div>
+</div><p>get_bilibili_data()函数用来获取通过<strong>bilibiliApi</strong>和<strong>deepseekApi</strong>返回的数据</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre tabindex="0" class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre tabindex="0" class="chroma"><code class="language-gdscript3" data-lang="gdscript3"><span class="line"><span class="cl"><span class="k">def</span> <span class="nf">get_bilibili_data</span><span class="p">():</span>
+</span></span><span class="line"><span class="cl">    <span class="n">video_id</span> <span class="o">=</span> <span class="s2">&#34;BV1a8wKeeESd&#34;</span>  <span class="c1"># 替换为你要查询的视频ID</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">video_info</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">get_video_info</span><span class="p">(</span><span class="n">video_id</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="n">result</span><span class="p">[</span><span class="s2">&#34;video_info&#34;</span><span class="p">]</span> <span class="o">=</span> <span class="n">video_info</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">author_stats</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">get_user_stats</span><span class="p">(</span><span class="n">video_info</span><span class="p">[</span><span class="s2">&#34;author_mid&#34;</span><span class="p">]))</span>
+</span></span><span class="line"><span class="cl">    <span class="n">result</span><span class="p">[</span><span class="s2">&#34;author_stats&#34;</span><span class="p">]</span> <span class="o">=</span> <span class="n">author_stats</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">tags</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">get_video_tags</span><span class="p">(</span><span class="n">video_id</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="n">result</span><span class="p">[</span><span class="s2">&#34;tags&#34;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tags</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">danmaku_data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">get_danmaku</span><span class="p">(</span><span class="n">video_id</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="n">result</span><span class="p">[</span><span class="s2">&#34;danmaku_data&#34;</span><span class="p">]</span> <span class="o">=</span> <span class="n">danmaku_data</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="n">analysis_result</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">analyze_danmaku</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">danmaku_data</span><span class="p">[</span><span class="s2">&#34;danmaku_list&#34;</span><span class="p">],</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">video_info</span><span class="p">[</span><span class="s2">&#34;title&#34;</span><span class="p">],</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">tags</span><span class="p">,</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">video_info</span><span class="p">[</span><span class="s2">&#34;view&#34;</span><span class="p">],</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">video_info</span><span class="p">[</span><span class="s2">&#34;danmaku&#34;</span><span class="p">],</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">video_info</span><span class="p">[</span><span class="s2">&#34;reply&#34;</span><span class="p">],</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">video_info</span><span class="p">[</span><span class="s2">&#34;favorite&#34;</span><span class="p">],</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">video_info</span><span class="p">[</span><span class="s2">&#34;coin&#34;</span><span class="p">],</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">video_info</span><span class="p">[</span><span class="s2">&#34;share&#34;</span><span class="p">],</span> 
+</span></span><span class="line"><span class="cl">        <span class="n">video_info</span><span class="p">[</span><span class="s2">&#34;like&#34;</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl">    <span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="n">result</span><span class="p">[</span><span class="s2">&#34;analysis&#34;</span><span class="p">]</span> <span class="o">=</span> <span class="n">analysis_result</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">result</span>
+</span></span></code></pre></td></tr></table>
+</div>
+</div><h3 id="优化数据展示">优化数据展示
+</h3><p>思路解释：</p>
+<ul>
+<li>
+<p>函数中返回<strong>danmaku_times</strong>、<strong>duration</strong>、<strong>danmaku_real_times</strong>等数据</p>
+</li>
+<li>
+<p>经过**prepare_chart_data(danmaku_times, duration)<strong>与</strong>prepare_real_time_data(danmaku_real_times)**这两个函数二次处理后生成list数据。</p>
+</li>
+<li>
+<p>传递给script中，由 <strong>const realTimeChartData</strong>与<strong>const charData</strong>这两个变量接收。</p>
+</li>
+<li>
+<p>参照chart.js官方文档，使用chart.js绘制图表</p>
+</li>
+</ul>
+<h2 id="阶段成功展示">阶段成功展示：
+</h2><p><img src="/img/1.0.2-1.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="alt text"
+	
+	
+>
+<img src="/img/1.0.2-2.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="alt text"
+	
+	
+>
+<img src="/img/1.0.2-3.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="alt text"
+	
+	
+>
+<img src="/img/1.0.2-4.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="alt text"
+	
+	
+>
+<img src="/img/1.0.2-5.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="alt text"
+	
+	
+>
+<img src="/img/1.0.2-6.png"
+	
+	
+	
+	loading="lazy"
+	
+		alt="alt text"
+	
+	
+></p>
+<p>你可以发现，在最后一个统计中弹幕突然下跌。这是因为对于一次访问，最多只能提取到1200条弹幕。下一个阶段，需要解决弹幕提取的问题：</p>
+<p>1.可以分阶段访问<br>
+2.采用抽样方法。</p>
+
+</section>
+
+
+    <footer class="article-footer">
+    
+    <section class="article-tags">
+        
+            <a href="/tags/deepseek/">Deepseek</a>
+        
+            <a href="/tags/%E5%BC%B9%E5%B9%95%E5%88%86%E6%9E%90/">弹幕分析</a>
+        
+            <a href="/tags/ai/">AI</a>
+        
+    </section>
+
+
+    </footer>
+
+
+    
+        <link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI&#43;WdtXRGWt2kTvGFasHpSy3SV"crossorigin="anonymous"
+            ><script 
+                src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG&#43;vnGctmUb0ZY0l8"crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"integrity="sha384-&#43;VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4&#43;/RRE05"crossorigin="anonymous"
+                defer
+                >
+            </script><script>
+    window.addEventListener("DOMContentLoaded", () => {
+	const mainArticleElement = document.querySelector(".main-article");
+        renderMathInElement(mainArticleElement, {
+            delimiters: [
+                { left: "$$", right: "$$", display: true },
+                { left: "$", right: "$", display: false },
+                { left: "\\(", right: "\\)", display: false },
+                { left: "\\[", right: "\\]", display: true }
+            ],
+            ignoredClasses: ["gist"]
+        });})
+</script>
+
+    
+</article>
+
+    
+
+    
+
+     
+    
+        
+    <div class="disqus-container">
+    <div id="disqus_thread"></div>
+<script>
+    window.disqus_config = function () {
+    
+    
+    
+    };
+    (function() {
+        if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
+            document.getElementById('disqus_thread').innerHTML = 'Disqus comments not available by default when the website is previewed locally.';
+            return;
+        }
+        var d = document, s = d.createElement('script'); s.async = true;
+        s.src = '//' + "hugo-theme-stack" + '.disqus.com/embed.js';
+        s.setAttribute('data-timestamp', +new Date());
+        (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="https://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+</div>
+
+<style>
+    .disqus-container {
+        background-color: var(--card-background);
+        border-radius: var(--card-border-radius);
+        box-shadow: var(--shadow-l1);
+        padding: var(--card-padding);
+    }
+</style>
+
+<script>
+    window.addEventListener('onColorSchemeChange', (e) => {
+        if (typeof DISQUS == 'object') {
+            DISQUS.reset({
+                reload: true
+            });
+        }
+    })
+</script>
+
+    
+
+    <footer class="site-footer">
+    <section class="copyright">
+        &copy; 
+        
+        2025 LASTROBER
+    </section>
+    
+    <section class="powerby">
+        
+            芝士博客 <br/>
+        使用 <a href="https://gohugo.io/" target="_blank" rel="noopener">Hugo</a> 构建 <br />
+        主题 <b><a href="https://github.com/CaiJimmy/hugo-theme-stack" target="_blank" rel="noopener" data-version="3.30.0">Stack</a></b> 由 <a href="https://jimmycai.com" target="_blank" rel="noopener">Jimmy</a> 设计
+    </section>
+</footer>
+
+
+    
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    
+    <div class="pswp__bg"></div>
+
+    
+    <div class="pswp__scroll-wrap">
+
+        
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                
+                
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo="crossorigin="anonymous"
+                defer
+                >
+            </script><script 
+                src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU="crossorigin="anonymous"
+                defer
+                >
+            </script><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css"crossorigin="anonymous"
+            ><link 
+                rel="stylesheet" 
+                href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css"crossorigin="anonymous"
+            >
+
+            </main>
+        </div>
+        <script 
+                src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js"integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z&#43;KMkF24hUW8WePSA9HM="crossorigin="anonymous"
+                
+                >
+            </script><script type="text/javascript" src="/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js" defer></script>
+<script>
+    (function () {
+        const customFont = document.createElement('link');
+        customFont.href = "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap";
+
+        customFont.type = "text/css";
+        customFont.rel = "stylesheet";
+
+        document.head.appendChild(customFont);
+    }());
+</script>
+<script>
+
+const live2d_path = "https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/";
+
+const cssPath = "https://lastrober.github.io/waifu/waifu.css"
+const waifuTipsJsonPath = "https://lastrober.github.io/waifu/waifu-tips.json"
+
+function loadExternalResource(url, type) {
+	return new Promise((resolve, reject) => {
+		let tag;
+
+		if (type === "css") {
+			tag = document.createElement("link");
+			tag.rel = "stylesheet";
+			tag.href = url;
+		}
+		else if (type === "js") {
+			tag = document.createElement("script");
+			tag.src = url;
+		}
+		if (tag) {
+			tag.onload = () => resolve(url);
+			tag.onerror = () => reject(url);
+			document.head.appendChild(tag);
+		}
+	});
+}
+
+
+if (screen.width >= 768) {
+	Promise.all([
+		loadExternalResource(cssPath, "css"),
+		loadExternalResource(live2d_path + "live2d.min.js", "js"),
+		loadExternalResource(live2d_path + "waifu-tips.js", "js")
+	]).then(() => {
+		
+		initWidget({
+			waifuPath: waifuTipsJsonPath,
+			
+			cdnPath: "https://cdn.jsdelivr.net/gh/LASTROBER/static-resource@v1.0.3",
+			tools: ["photo", "info"],
+		});
+		initWaifuMouseEvent();
+		function initWaifuMouseEvent() {
+			const waifu = document.getElementById("waifu");
+			let isDown = false;
+			let waifuLeft;
+			let mouseLeft;
+			let waifuTop;
+			let mouseTop;
+			
+			waifu.onmousedown = function (e) {
+				isDown = true;
+				
+				waifuLeft = waifu.offsetLeft;
+				mouseLeft = e.clientX;
+				
+				waifuTop = waifu.offsetTop;
+				mouseTop = e.clientY;
+			}
+			
+			window.onmousemove = function (e) {
+				if (!isDown) {
+					return;
+				}
+				
+				let currentLeft = waifuLeft + (e.clientX - mouseLeft);
+				if (currentLeft < 0) {
+					currentLeft = 0;
+				} else if (currentLeft > window.innerWidth - 300) {
+					currentLeft = window.innerWidth - 300;
+				}
+				waifu.style.left = currentLeft  + "px";
+				
+				
+				if (currentTop < 30) {
+					currentTop = 30
+				} else if (currentTop > window.innerHeight - 290) {
+					currentTop = window.innerHeight - 290
+				}
+				waifu.style.top = currentTop + "px"; 
+			}
+			
+			window.onmouseup = function (e) {
+				isDown = false;
+			}
+		}
+	});
+}
+</script>
+
+
+    </body>
+</html>

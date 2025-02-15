@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="zh-cn" dir="ltr">
     <head><meta charset='utf-8'>
-<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content="This is a test page for i18n support.\n">
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content="LastRober的个人博客 记录日常生活、分享行业前沿知识\n">
 <title>关于</title>
 
 <link rel='canonical' href='https://lastrober.github.io/%E5%85%B3%E4%BA%8E/'>
 
 <link rel="stylesheet" href="/scss/style.min.663803bebe609202d5b39d848f2d7c2dc8b598a2d879efa079fa88893d29c49c.css"><meta property='og:title' content="关于">
-<meta property='og:description' content="This is a test page for i18n support.\n">
+<meta property='og:description' content="LastRober的个人博客 记录日常生活、分享行业前沿知识\n">
 <meta property='og:url' content='https://lastrober.github.io/%E5%85%B3%E4%BA%8E/'>
 <meta property='og:site_name' content='LastRober'>
 <meta property='og:type' content='article'><meta property='article:section' content='Page' />
 <meta name="twitter:title" content="关于">
-<meta name="twitter:description" content="This is a test page for i18n support.\n">
+<meta name="twitter:description" content="LastRober的个人博客 记录日常生活、分享行业前沿知识\n">
     </head>
     <body class="
     article-page
@@ -70,7 +70,7 @@
         
         <div class="site-meta">
             <h1 class="site-name"><a href="/">LastRober</a></h1>
-            <h2 class="site-description">演示说明</h2>
+            <h2 class="site-description">大🐟若智</h2>
         </div>
     </header><ol class="menu-social">
             
@@ -274,7 +274,38 @@
     </ol>
 </aside>
 
-    
+    <aside class="sidebar right-sidebar sticky">
+        
+            
+                
+    <section class="widget archives">
+        <div class="widget-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path stroke="none" d="M0 0h24v24H0z"/>
+  <line x1="5" y1="9" x2="19" y2="9" />
+  <line x1="5" y1="15" x2="19" y2="15" />
+  <line x1="11" y1="4" x2="7" y2="20" />
+  <line x1="17" y1="4" x2="13" y2="20" />
+</svg>
+
+
+
+        </div>
+        <h2 class="widget-title section-title">目录</h2>
+        
+        <div class="widget--toc">
+            <nav id="TableOfContents">
+  <ol>
+    <li><a href="#lastrober的个人博客">LastRober的个人博客</a></li>
+  </ol>
+</nav>
+        </div>
+    </section>
+
+            
+        
+    </aside>
+
 
             <main class="main full-width">
     <article class="main-article">
@@ -324,7 +355,8 @@
     <section class="article-content">
     
     
-    <p>This is a test page for i18n support.</p>
+    <h2 id="lastrober的个人博客">LastRober的个人博客
+</h2><p>记录日常生活、分享行业前沿知识</p>
 
 </section>
 
@@ -527,6 +559,97 @@
         document.head.appendChild(customFont);
     }());
 </script>
+<script>
+
+const live2d_path = "https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/";
+
+const cssPath = "https://lastrober.github.io/waifu/waifu.css"
+const waifuTipsJsonPath = "https://lastrober.github.io/waifu/waifu-tips.json"
+
+function loadExternalResource(url, type) {
+	return new Promise((resolve, reject) => {
+		let tag;
+
+		if (type === "css") {
+			tag = document.createElement("link");
+			tag.rel = "stylesheet";
+			tag.href = url;
+		}
+		else if (type === "js") {
+			tag = document.createElement("script");
+			tag.src = url;
+		}
+		if (tag) {
+			tag.onload = () => resolve(url);
+			tag.onerror = () => reject(url);
+			document.head.appendChild(tag);
+		}
+	});
+}
+
+
+if (screen.width >= 768) {
+	Promise.all([
+		loadExternalResource(cssPath, "css"),
+		loadExternalResource(live2d_path + "live2d.min.js", "js"),
+		loadExternalResource(live2d_path + "waifu-tips.js", "js")
+	]).then(() => {
+		
+		initWidget({
+			waifuPath: waifuTipsJsonPath,
+			
+			cdnPath: "https://cdn.jsdelivr.net/gh/LASTROBER/static-resource@v1.0.3",
+			tools: ["photo", "info"],
+		});
+		initWaifuMouseEvent();
+		function initWaifuMouseEvent() {
+			const waifu = document.getElementById("waifu");
+			let isDown = false;
+			let waifuLeft;
+			let mouseLeft;
+			let waifuTop;
+			let mouseTop;
+			
+			waifu.onmousedown = function (e) {
+				isDown = true;
+				
+				waifuLeft = waifu.offsetLeft;
+				mouseLeft = e.clientX;
+				
+				waifuTop = waifu.offsetTop;
+				mouseTop = e.clientY;
+			}
+			
+			window.onmousemove = function (e) {
+				if (!isDown) {
+					return;
+				}
+				
+				let currentLeft = waifuLeft + (e.clientX - mouseLeft);
+				if (currentLeft < 0) {
+					currentLeft = 0;
+				} else if (currentLeft > window.innerWidth - 300) {
+					currentLeft = window.innerWidth - 300;
+				}
+				waifu.style.left = currentLeft  + "px";
+				
+				
+				if (currentTop < 30) {
+					currentTop = 30
+				} else if (currentTop > window.innerHeight - 290) {
+					currentTop = window.innerHeight - 290
+				}
+				waifu.style.top = currentTop + "px"; 
+			}
+			
+			window.onmouseup = function (e) {
+				isDown = false;
+			}
+		}
+	});
+}
+</script>
+
 
     </body>
 </html>

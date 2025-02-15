@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="zh-cn" dir="ltr">
     <head><meta charset='utf-8'>
-<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content="演示说明">
+<meta name='viewport' content='width=device-width, initial-scale=1'><meta name='description' content="大🐟若智">
 <title>Tag: Text - LastRober</title>
 
 <link rel='canonical' href='https://lastrober.github.io/tags/text/'>
 
 <link rel="stylesheet" href="/scss/style.min.663803bebe609202d5b39d848f2d7c2dc8b598a2d879efa079fa88893d29c49c.css"><meta property='og:title' content="Tag: Text - LastRober">
-<meta property='og:description' content="演示说明">
+<meta property='og:description' content="大🐟若智">
 <meta property='og:url' content='https://lastrober.github.io/tags/text/'>
 <meta property='og:site_name' content='LastRober'>
-<meta property='og:type' content='website'><meta property='og:updated_time' content=' 2025-02-11T21:51:53&#43;08:00 '/>
+<meta property='og:type' content='website'><meta property='og:updated_time' content=' 2025-02-13T16:27:27&#43;08:00 '/>
 <meta name="twitter:title" content="Tag: Text - LastRober">
-<meta name="twitter:description" content="演示说明"><link rel="alternate" type="application/rss&#43;xml" href="https://lastrober.github.io/tags/text/index.xml">
+<meta name="twitter:description" content="大🐟若智"><link rel="alternate" type="application/rss&#43;xml" href="https://lastrober.github.io/tags/text/index.xml">
     </head>
     <body class="">
     <script>
@@ -68,7 +68,7 @@
         
         <div class="site-meta">
             <h1 class="site-name"><a href="/">LastRober</a></h1>
-            <h2 class="site-description">演示说明</h2>
+            <h2 class="site-description">大🐟若智</h2>
         </div>
     </header><ol class="menu-social">
             
@@ -317,7 +317,7 @@
                     <a href="/archives/#2025">
                         
                             <span class="year">2025</span>
-                            <span class="count">2</span>
+                            <span class="count">5</span>
                         
                     </a> 
                 </div>
@@ -364,6 +364,26 @@
                 Test
             </a>
         
+            <a href="/categories/ai/" class="font_size_2">
+                AI
+            </a>
+        
+            <a href="/categories/code/" class="font_size_1">
+                Code
+            </a>
+        
+            <a href="/categories/deepseek/" class="font_size_1">
+                Deepseek
+            </a>
+        
+            <a href="/categories/github/" class="font_size_1">
+                Github
+            </a>
+        
+            <a href="/categories/poem/" class="font_size_1">
+                Poem
+            </a>
+        
             <a href="/categories/syntax/" class="font_size_1">
                 Syntax
             </a>
@@ -376,8 +396,8 @@
                 Themes
             </a>
         
-            <a href="/categories/%E6%B5%8B%E8%AF%95/" class="font_size_1">
-                测试
+            <a href="/categories/wirted-in-2024/" class="font_size_1">
+                Wirted in 2024
             </a>
         
     </div>
@@ -401,32 +421,44 @@
 
     <div class="tagCloud-tags">
         
-            <a href="/tags/markdown/" class="font_size_2">
+            <a href="/tags/markdown/" class="font_size_3">
                 Markdown
+            </a>
+        
+            <a href="/tags/ai/" class="font_size_2">
+                AI
+            </a>
+        
+            <a href="/tags/code/" class="font_size_1">
+                Code
             </a>
         
             <a href="/tags/css/" class="font_size_1">
                 Css
             </a>
         
+            <a href="/tags/deepseek/" class="font_size_1">
+                Deepseek
+            </a>
+        
             <a href="/tags/emoji/" class="font_size_1">
                 Emoji
+            </a>
+        
+            <a href="/tags/github/" class="font_size_1">
+                Github
             </a>
         
             <a href="/tags/html/" class="font_size_1">
                 Html
             </a>
         
+            <a href="/tags/poem/" class="font_size_1">
+                Poem
+            </a>
+        
             <a href="/tags/tag-with-whitespaces/" class="font_size_1">
                 Tag With Whitespaces
-            </a>
-        
-            <a href="/tags/text/" class="font_size_1">
-                Text
-            </a>
-        
-            <a href="/tags/themes/" class="font_size_1">
-                Themes
             </a>
         
     </div>
@@ -510,6 +542,97 @@
         document.head.appendChild(customFont);
     }());
 </script>
+<script>
+
+const live2d_path = "https://fastly.jsdelivr.net/gh/stevenjoezhang/live2d-widget@latest/";
+
+const cssPath = "https://lastrober.github.io/waifu/waifu.css"
+const waifuTipsJsonPath = "https://lastrober.github.io/waifu/waifu-tips.json"
+
+function loadExternalResource(url, type) {
+	return new Promise((resolve, reject) => {
+		let tag;
+
+		if (type === "css") {
+			tag = document.createElement("link");
+			tag.rel = "stylesheet";
+			tag.href = url;
+		}
+		else if (type === "js") {
+			tag = document.createElement("script");
+			tag.src = url;
+		}
+		if (tag) {
+			tag.onload = () => resolve(url);
+			tag.onerror = () => reject(url);
+			document.head.appendChild(tag);
+		}
+	});
+}
+
+
+if (screen.width >= 768) {
+	Promise.all([
+		loadExternalResource(cssPath, "css"),
+		loadExternalResource(live2d_path + "live2d.min.js", "js"),
+		loadExternalResource(live2d_path + "waifu-tips.js", "js")
+	]).then(() => {
+		
+		initWidget({
+			waifuPath: waifuTipsJsonPath,
+			
+			cdnPath: "https://cdn.jsdelivr.net/gh/LASTROBER/static-resource@v1.0.3",
+			tools: ["photo", "info"],
+		});
+		initWaifuMouseEvent();
+		function initWaifuMouseEvent() {
+			const waifu = document.getElementById("waifu");
+			let isDown = false;
+			let waifuLeft;
+			let mouseLeft;
+			let waifuTop;
+			let mouseTop;
+			
+			waifu.onmousedown = function (e) {
+				isDown = true;
+				
+				waifuLeft = waifu.offsetLeft;
+				mouseLeft = e.clientX;
+				
+				waifuTop = waifu.offsetTop;
+				mouseTop = e.clientY;
+			}
+			
+			window.onmousemove = function (e) {
+				if (!isDown) {
+					return;
+				}
+				
+				let currentLeft = waifuLeft + (e.clientX - mouseLeft);
+				if (currentLeft < 0) {
+					currentLeft = 0;
+				} else if (currentLeft > window.innerWidth - 300) {
+					currentLeft = window.innerWidth - 300;
+				}
+				waifu.style.left = currentLeft  + "px";
+				
+				
+				if (currentTop < 30) {
+					currentTop = 30
+				} else if (currentTop > window.innerHeight - 290) {
+					currentTop = window.innerHeight - 290
+				}
+				waifu.style.top = currentTop + "px"; 
+			}
+			
+			window.onmouseup = function (e) {
+				isDown = false;
+			}
+		}
+	});
+}
+</script>
+
 
     </body>
 </html>
